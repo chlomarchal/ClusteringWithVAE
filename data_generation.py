@@ -1,9 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Sun Apr  7 18:43:55 2024
-
-@author: chloe
-"""
 from sklearn.model_selection import train_test_split
 from sklearn.cluster import KMeans
 from sklearn.metrics import log_loss
@@ -17,10 +11,18 @@ from collections import Counter
 import statsmodels.api as sm
 import seaborn as sns
 
-#%% Preparation of the data
+#############################################
+# CHANGE PATH !!!!
+#############################################
 
-data = pd.read_csv("C:/Users/chloe/OneDrive/Documents/DATS2M_1/MEMOIRE/Code/code officiel/data/train.csv", sep=',')
-data2 = pd.read_csv("C:/Users/chloe/OneDrive/Documents/DATS2M_1/MEMOIRE/Code/code officiel/data/test.csv", sep=',')
+path = 'C:/Users/chloe/OneDrive/Documents/DATS2M_1/MEMOIRE/Code/code officiel/data'
+
+#############################################
+# Importing datasets and data preprocessing
+#############################################
+
+data = pd.read_csv(path + "/train.csv", sep=',')
+data2 = pd.read_csv(path + "/test.csv", sep=',')
 data = pd.concat([data, data2])
 data['Arrival Delay in Minutes'].fillna(value=data['Arrival Delay in Minutes'].median(axis=0),inplace=True)
 data = data.drop(columns = ['Unnamed: 0', 'id']) 
@@ -68,7 +70,10 @@ X_test = pd.get_dummies(data_test, drop_first=False)
 X_train = np.asarray(X_train, dtype='float')
 X_test = np.asarray(X_test, dtype='float')
 
-#%% VAE for data generation
+
+#############################################
+# VAE for data generation
+#############################################
 
 import random
 random.seed(2023)
@@ -84,13 +89,13 @@ original_dim = 113
                             
 # encoder model
 inputs = keras.Input(shape=(original_dim,))
-m = layers.Dense(intermediate_dim, activation="relu")(inputs)
-#m = layers.Dense(64, activation = "sigmoid")(m)
-n = layers.Dense(20, activation="relu")(m)
-h = layers.Dense(15, activation="relu")(n)
-z_mean = layers.Dense(latent_dim)(h)
-z_log_var = layers.Dense(latent_dim)(h)
+d1_encoder = layers.Dense(intermediate_dim, activation="relu")(inputs)
+d2_encoder = layers.Dense(20, activation="relu")(d1_encoder)
+d3_encoder = layers.Dense(15, activation="relu")(d2_encoder)
+z_mean = layers.Dense(latent_dim)(d3_encoder)
+z_log_var = layers.Dense(latent_dim)(d3_encoder)
 encoder = keras.Model(inputs, [z_mean, z_log_var], name="encoder")
+
 
 class Sampler(layers.Layer):
     def call(self, z_mean, z_log_var):
@@ -99,13 +104,11 @@ class Sampler(layers.Layer):
         epsilon = tf.random.normal(shape=(batch_size, z_size))
         return z_mean + tf.exp(0.5 * z_log_var) * epsilon
 
-
+#decoder model
 latent_inputs = keras.Input(shape=(latent_dim,), name="z_sampling")
-x = layers.Dense(15, activation="relu")(latent_inputs)
-#x = layers.Dense(20, activation="relu")(x)
-x = layers.Dense(intermediate_dim, activation="relu")(x)
-#x = layers.Dense(64, activation = "sigmoid")(x)
-outputs = layers.Dense(original_dim, activation="sigmoid")(x)
+d1_decoder = layers.Dense(15, activation="relu")(latent_inputs)
+d2_decoder = layers.Dense(intermediate_dim, activation="relu")(d1_decoder)
+outputs = layers.Dense(original_dim, activation="sigmoid")(d2_decoder)
 decoder = keras.Model(latent_inputs, outputs, name="decoder")
         
 class VAE(keras.Model):
@@ -154,7 +157,10 @@ opt = keras.optimizers.RMSprop(learning_rate=lr)
 vae.compile(optimizer=opt, metrics=[keras.metrics.BinaryCrossentropy()])
 history = vae.fit(X_train, epochs=epoch, batch_size = batchsize, verbose = 1)
         
-#%% Construct synthetic dataset
+
+#############################################
+# Construct the synthetic dataset
+#############################################
 
 import random
 random.seed(2023)
@@ -195,7 +201,11 @@ def undummify(df, prefix_sep="_"):
 
 X_generated = undummify(generated_passengers, prefix_sep="_")
 
-#%% one hot encoding of generated set for prediction of satisfaction using GLM
+#############################################
+# one hot encoding of synthetic dataset
+#############################################
+
+#add the levels that were not generated and put everything in the same order as the original dataset 
 X_reconst_one_hot = pd.get_dummies(X_generated, drop_first=False)
 X_reconst_one_hot.insert(27, 'Gate location_0', 0)
 X_reconst_one_hot.insert(45, 'Seat comfort_0', 0)
@@ -229,7 +239,10 @@ X_reconst_one_hot = X_reconst_one_hot[['Gender_Female', 'Gender_Male',
                                        'DepartDelayCat_0 - 5', 'DepartDelayCat_6 - 60', 'DepartDelayCat_61 - 120', 'DepartDelayCat_121 - 240', 'DepartDelayCat_240+',
                                        'ArrivalDelayCat_0 - 5', 'ArrivalDelayCat_6 - 60', 'ArrivalDelayCat_61 - 120', 'ArrivalDelayCat_121 - 240', 'ArrivalDelayCat_241+']]
 
-#%% prediction of satisfaction using GLM
+
+#############################################
+# prediction of satisfaction using GLM
+#############################################
 
 train_encoded = vae.encoder.predict(X_train)
 z_train = Sampler(name="z")(train_encoded[0], train_encoded[1])
@@ -253,8 +266,11 @@ X_reconstructed.loc[X_reconstructed['satisfaction'] >= 0.5, 'satisfaction'] = 1
 X_reconstructed.loc[X_reconstructed['satisfaction'] < 0.5, 'satisfaction'] = 0
 
 
-#%% one-hot encoding of the generated set with satisfaction for applying Kmeans
+##########################################################
+# one-hot encoding of the generated set with satisfaction
+##########################################################
 
+#again levels that were absent need to be added for one-hot encoding
 X_reconstructed_one_hot = pd.get_dummies(X_reconstructed, drop_first=False)
 X_reconstructed_one_hot.insert(27, 'Gate location_0', 0)
 X_reconstructed_one_hot.insert(45, 'Seat comfort_0', 0)
@@ -291,7 +307,10 @@ X_reconstructed_one_hot = X_reconstructed_one_hot[['Gender_Female', 'Gender_Male
 Yr = X_reconstructed_one_hot[['satisfaction']]
 Xr = X_reconstructed_one_hot.drop(['satisfaction'], axis=1)
 
-#%% VAE for Kmeans
+
+#############################################
+# VAE with K-means
+#############################################
 
 import random
 random.seed(2023)
@@ -309,7 +328,6 @@ original_dim = 113
 # encoder model
 inputs = keras.Input(shape=(original_dim,))
 d1_encoder = layers.Dense(intermediate_dim, activation="relu")(inputs)
-#m = layers.Dense(64, activation = "sigmoid")(m)
 d2_encoder = layers.Dense(20, activation="relu")(d1_encoder)
 d3_encoder = layers.Dense(15, activation="relu")(d2_encoder)
 z_mean = layers.Dense(latent_dim)(d3_encoder)
@@ -323,7 +341,7 @@ class Sampler(layers.Layer):
         epsilon = tf.random.normal(shape=(batch_size, z_size))
         return z_mean + tf.exp(0.5 * z_log_var) * epsilon
 
-
+#decoder model
 latent_inputs = keras.Input(shape=(latent_dim,), name="z_sampling")
 d1_decoder = layers.Dense(15, activation="relu")(latent_inputs)
 d2_decoder = layers.Dense(intermediate_dim, activation="relu")(d1_decoder)
@@ -376,7 +394,7 @@ vae_kmeans.compile(optimizer=opt, metrics=[keras.metrics.BinaryCrossentropy()])
 history = vae_kmeans.fit(X_train, epochs=epoch, batch_size = batchsize, verbose = 1)
 
 
-#%% Compression of the datasets
+# Compression of the datasets
 train_encoded = vae_kmeans.encoder_kmeans.predict(X_train)
 z_train = Sampler(name="z")(train_encoded[0], train_encoded[1])
 train_compressed = z_train._numpy()
@@ -385,8 +403,8 @@ X_gen_encoded = vae_kmeans.encoder_kmeans.predict(Xr)
 z_generated = Sampler(name="z")(X_gen_encoded[0], X_gen_encoded[1])
 X_gen_compressed = z_generated._numpy()
 
-#%% Clustering with Kmeans
 
+# Clustering with Kmeans
 clus = 10
 
 km = KMeans(init="random",
@@ -396,7 +414,7 @@ km = KMeans(init="random",
                     random_state=42)  # seed of the rnd number generator
 km.fit(train_compressed)
 
-#vector of clusters associated to each individual        
+# vector of cluster associated to each individual        
 X_clus = km.predict(X_gen_compressed)
 
 #out_tab : tables of dominant profiles in each cluster
@@ -448,7 +466,9 @@ logloss = log_loss(yobs, ypred)
 logloss
 out_tab
 
-#%% Barplots of generated dataset part 1
+#############################################
+# Barplots of generated dataset part 1
+#############################################
 
 num_sub_plot=len(X_reconstructed.columns)
 fig,ax=plt.subplots(4,3,figsize=(18,24))
@@ -467,8 +487,9 @@ sns.countplot(data=X_reconstructed,x=col[10],ax=ax[3,1], color= '#2DA3CD', order
 sns.countplot(data=X_reconstructed,x=col[11],ax=ax[3,2], color= '#2DA3CD', order = ['0','1','2','3','4','5'])
 
 
-#%% Barplots of generated dataset part 2
-
+#############################################
+# Barplots of generated dataset part 2
+#############################################
 
 num_sub_plot=len(data.columns)
 fig,ax=plt.subplots(4,3,figsize=(18,24))
