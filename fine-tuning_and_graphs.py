@@ -1,19 +1,5 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Tue May 21 17:19:11 2024
-
-@author: chloe
-"""
-
-# -*- coding: utf-8 -*-
-"""
-Created on Sun Apr  7 18:43:55 2024
-
-@author: chloe
-"""
 from tensorflow import keras
 from tensorflow.keras import layers
-# Import numpy & matplotlib
 import numpy as np
 import pandas as pd
 import tensorflow as tf
@@ -25,9 +11,18 @@ from sklearn.metrics import log_loss
 from sklearn.model_selection import KFold
 import statsmodels.api as sm
 
+#############################################
+# CHANGE PATH !!!!
+#############################################
 
-data = pd.read_csv("C:/Users/chloe/OneDrive/Documents/DATS2M_1/MEMOIRE/Code/code officiel/data/train.csv", sep=',')
-data2 = pd.read_csv("C:/Users/chloe/OneDrive/Documents/DATS2M_1/MEMOIRE/Code/code officiel/data/test.csv", sep=',')
+path = 'C:/Users/chloe/OneDrive/Documents/DATS2M_1/MEMOIRE/Code/code officiel/data'
+
+#############################################
+# Importing datasets and data preprocessing
+#############################################
+
+data = pd.read_csv(path + "/train.csv", sep=',')
+data2 = pd.read_csv(path + "/test.csv", sep=',')
 data = pd.concat([data, data2])
 data['Arrival Delay in Minutes'].fillna(value=data['Arrival Delay in Minutes'].median(axis=0),inplace=True)
 data = data.drop(columns = ['Unnamed: 0', 'id']) 
@@ -78,8 +73,9 @@ X_train = np.asarray(X_train, dtype='float')
 X_test = np.asarray(X_test, dtype='float')
 
 
-
-#%% Finetuning via grid search for kmeans and glm
+##############################################################################
+# Fine-tuning VAE hyperparameters via custom grid search for kmeans and glm
+##############################################################################
 
 def vaefunction (intermediate_dim, lr, latent_dim, batchsize, clus, epoch = 100): 
     
@@ -101,12 +97,11 @@ def vaefunction (intermediate_dim, lr, latent_dim, batchsize, clus, epoch = 100)
                 
         # encoder model
         inputs = keras.Input(shape=(original_dim,))
-        d1 = layers.Dense(intermediate_dim, activation="relu")(inputs)
-        #m = layers.Dense(64, activation = "sigmoid")(m)
-        d2 = layers.Dense(20, activation="relu")(d1)
-        d3 = layers.Dense(15, activation="relu")(d2)
-        z_mean = layers.Dense(latent_dim)(d3)
-        z_log_var = layers.Dense(latent_dim)(d3)
+        d1_encoder = layers.Dense(intermediate_dim, activation="relu")(inputs)
+        d2_encoder = layers.Dense(20, activation="relu")(d1_encoder)
+        d3_encoder = layers.Dense(15, activation="relu")(d2_encoder)
+        z_mean = layers.Dense(latent_dim)(d3_encoder)
+        z_log_var = layers.Dense(latent_dim)(d3_encoder)
         encoder = keras.Model(inputs, [z_mean, z_log_var], name="encoder")
 
 
@@ -117,11 +112,11 @@ def vaefunction (intermediate_dim, lr, latent_dim, batchsize, clus, epoch = 100)
                 epsilon = tf.random.normal(shape=(batch_size, z_size))
                 return z_mean + tf.exp(0.5 * z_log_var) * epsilon
 
-
+        #decoder model
         latent_inputs = keras.Input(shape=(latent_dim,), name="z_sampling")
-        d1 = layers.Dense(15, activation="relu")(latent_inputs)
-        d2 = layers.Dense(intermediate_dim, activation="relu")(d1)
-        outputs = layers.Dense(original_dim, activation="sigmoid")(d2)
+        d1_decoder = layers.Dense(15, activation="relu")(latent_inputs)
+        d2_decoder = layers.Dense(intermediate_dim, activation="relu")(d1_decoder)
+        outputs = layers.Dense(original_dim, activation="sigmoid")(d2_decoder)
         decoder = keras.Model(latent_inputs, outputs, name="decoder")
         
         
@@ -168,9 +163,7 @@ def vaefunction (intermediate_dim, lr, latent_dim, batchsize, clus, epoch = 100)
         
         
         vae = VAE(encoder, decoder)
-        #opt = keras.optimizers.Adam(learning_rate=0.01)
         opt = keras.optimizers.RMSprop(learning_rate=lr)
-        #opt = "rmsprop"
         vae.compile(optimizer=opt, metrics=[keras.metrics.BinaryCrossentropy()])
         vae.fit(train_fold, epochs=epoch, batch_size = batchsize, verbose = 0)
         
@@ -182,8 +175,6 @@ def vaefunction (intermediate_dim, lr, latent_dim, batchsize, clus, epoch = 100)
         bce = tf.keras.losses.BinaryCrossentropy(
             from_logits=False, reduction=tf.keras.losses.Reduction.SUM_OVER_BATCH_SIZE)
         loss = bce(test_fold, decoded)
-        print("Binary Cross-Entropy Loss (TensorFlow):", loss.numpy())
-        
         
         train_encoded = vae.encoder.predict(train_fold)
         z_train = Sampler(name="z")(train_encoded[0], train_encoded[1])
@@ -194,10 +185,7 @@ def vaefunction (intermediate_dim, lr, latent_dim, batchsize, clus, epoch = 100)
         test_compressed = z_test._numpy()
         
         
-        #encoded = vae.encoder.predict(X_one_hot_Complete)
-        #z = Sampler(name="z")(encoded[0], encoded[1])
-        #x_compressed = z._numpy()
-        
+        #Clustering
         n_clus = clus
         km = KMeans(init="random",
                     n_clusters=n_clus,
@@ -218,11 +206,11 @@ def vaefunction (intermediate_dim, lr, latent_dim, batchsize, clus, epoch = 100)
                      'FlightDistanceCat', 'DepartDelayCat', 'ArrivalDelayCat', 'satisfaction']
         out_tab = np.zeros(shape=(n_clus, len(out_names)))
         out_tab = pd.DataFrame(data=out_tab, columns=out_names)
-        # for each cluster, we find the most common features
         
         data_sub = np.take(data, test_index, axis = 0)
         X_sub = np.take(X, test_index, axis = 0)
 
+        # for each cluster, we find the most common features
         for k in range(0, n_clus):
             idx = (X_clus == k)
             SA = Counter(data_sub['satisfaction'][idx])[1] / \
@@ -258,9 +246,9 @@ def vaefunction (intermediate_dim, lr, latent_dim, batchsize, clus, epoch = 100)
         ypred = out_tab['satisfaction'][X_clus]
         logloss_k = log_loss(y_test_fold, ypred)
         scores1.append(logloss_k)
+           
         
-        
-        
+        #Regression
         glm_binom = sm.GLM(y_train_fold, train_compressed, family = sm.families.Binomial())
         res = glm_binom.fit()        
         ypred = res.predict(test_compressed)
@@ -276,7 +264,7 @@ bat = [200, 500, 1000, 10000]
 c = 10 #, 15]
 epo = 100
 
-
+#loops for grid searching
 scores = []
 for i in inte : 
     for l in lr : 
@@ -287,10 +275,11 @@ for i in inte :
                     scores.append([res[1], res[0],res[2], i, l, j, k, c, epo])
                     
 
-#%% Cross entropy of the GLM in function of the number of epochs
+######################################################################
+# Plot cross-entropy of the GLM in function of the number of epochs
+######################################################################
 
 def vaefunctionglm (intermediate_dim, lr, latent_dim, batchsize, epoch): 
-    
     import random
     random.seed(2023)
     tf.random.set_seed(2023)
@@ -299,14 +288,12 @@ def vaefunctionglm (intermediate_dim, lr, latent_dim, batchsize, epoch):
     original_dim = 113
                     
     # encoder model
-    # encoder model
     inputs = keras.Input(shape=(original_dim,))
-    m = layers.Dense(intermediate_dim, activation="relu")(inputs)
-    #m = layers.Dense(64, activation = "sigmoid")(m)
-    n = layers.Dense(20, activation="relu")(m)
-    h = layers.Dense(15, activation="relu")(n)
-    z_mean = layers.Dense(latent_dim)(h)
-    z_log_var = layers.Dense(latent_dim)(h)
+    d1_encoder = layers.Dense(intermediate_dim, activation="relu")(inputs)
+    d2_encoder = layers.Dense(20, activation="relu")(d1_encoder)
+    d3_encoder = layers.Dense(15, activation="relu")(d2_encoder)
+    z_mean = layers.Dense(latent_dim)(d3_encoder)
+    z_log_var = layers.Dense(latent_dim)(d3_encoder)
     encoder = keras.Model(inputs, [z_mean, z_log_var], name="encoder")
 
 
@@ -318,12 +305,11 @@ def vaefunctionglm (intermediate_dim, lr, latent_dim, batchsize, epoch):
             return z_mean + tf.exp(0.5 * z_log_var) * epsilon
 
 
+    #decoder model
     latent_inputs = keras.Input(shape=(latent_dim,), name="z_sampling")
-    x = layers.Dense(15, activation="relu")(latent_inputs)
-    #x = layers.Dense(20, activation="relu")(x)
-    x = layers.Dense(intermediate_dim, activation="relu")(x)
-    #x = layers.Dense(64, activation = "sigmoid")(x)
-    outputs = layers.Dense(original_dim, activation="sigmoid")(x)
+    d1_decoder = layers.Dense(15, activation="relu")(latent_inputs)
+    d2_decoder = layers.Dense(intermediate_dim, activation="relu")(d1_decoder)
+    outputs = layers.Dense(original_dim, activation="sigmoid")(d2_decoder)
     decoder = keras.Model(latent_inputs, outputs, name="decoder")
             
             
@@ -422,7 +408,10 @@ for e in epoch :
 plt.title('Cross entropy')
 plt.plot(epoch, ce_glm, 'b.-')                    
                     
-#%% Cross entropy of the Kmeans in function of the number of epochs 
+
+######################################################################
+# Plot cross-entropy of the K-means in function of the number of epochs
+######################################################################
 
 def vaefunctionkmeans (intermediate_dim, lr, latent_dim, batchsize, clus, epoch = 100): 
     
@@ -435,12 +424,11 @@ def vaefunctionkmeans (intermediate_dim, lr, latent_dim, batchsize, clus, epoch 
     
     # encoder model
     inputs = keras.Input(shape=(original_dim,))
-    d1 = layers.Dense(intermediate_dim, activation="relu")(inputs)
-    #m = layers.Dense(64, activation = "sigmoid")(m)
-    d2 = layers.Dense(20, activation="relu")(d1)
-    d3 = layers.Dense(15, activation="relu")(d2)
-    z_mean = layers.Dense(latent_dim)(d3)
-    z_log_var = layers.Dense(latent_dim)(d3)
+    d1_encoder = layers.Dense(intermediate_dim, activation="relu")(inputs)
+    d2_encoder = layers.Dense(20, activation="relu")(d1_encoder)
+    d3_encoder = layers.Dense(15, activation="relu")(d2_encoder)
+    z_mean = layers.Dense(latent_dim)(d3_encoder)
+    z_log_var = layers.Dense(latent_dim)(d3_encoder)
     encoder = keras.Model(inputs, [z_mean, z_log_var], name="encoder")
 
 
@@ -451,11 +439,11 @@ def vaefunctionkmeans (intermediate_dim, lr, latent_dim, batchsize, clus, epoch 
             epsilon = tf.random.normal(shape=(batch_size, z_size))
             return z_mean + tf.exp(0.5 * z_log_var) * epsilon
 
-
+    #decoder model
     latent_inputs = keras.Input(shape=(latent_dim,), name="z_sampling")
-    d1 = layers.Dense(15, activation="relu")(latent_inputs)
-    d2 = layers.Dense(intermediate_dim, activation="relu")(d1)
-    outputs = layers.Dense(original_dim, activation="sigmoid")(d2)
+    d1_decoder = layers.Dense(15, activation="relu")(latent_inputs)
+    d2_decoder = layers.Dense(intermediate_dim, activation="relu")(d1_decoder)
+    outputs = layers.Dense(original_dim, activation="sigmoid")(d2_decoder)
     decoder = keras.Model(latent_inputs, outputs, name="decoder")
     
     
@@ -534,13 +522,9 @@ def vaefunctionkmeans (intermediate_dim, lr, latent_dim, batchsize, clus, epoch 
             
     X_clus = km.predict(test_compressed)
 
-            # ssd = [] for i in range (20, 30):    km = KMeans(n_clusters = i).fit(X_compressed) ssd.append([int(i), km.inertia_]) ssd = np.array(ssd).reshape(-1,2) plt.plot(ssd[:, 0], ssd[:, 1], 'bo-')
-
-            # goodness of fit
-    print('K-means inertia {}'.format(km.inertia_))
-            # vector of clusters associated to each record
-            #X_clus = km.labels_
-            # out_tab : tables of dominant profiles in each cluster
+    # vector of clusters associated to each record
+    #X_clus = km.labels_
+    # out_tab : tables of dominant profiles in each cluster
     out_names = ['Gender', 'Customer Type', 'Type of Travel', 'Class',
                          'Inflight wifi service', 'Departure/Arrival time convenient',
                          'Ease of Online booking', 'Gate location', 'Food and drink',
@@ -550,8 +534,8 @@ def vaefunctionkmeans (intermediate_dim, lr, latent_dim, batchsize, clus, epoch 
                          'FlightDistanceCat', 'DepartDelayCat', 'ArrivalDelayCat', 'satisfaction']
     out_tab = np.zeros(shape=(clus, len(out_names)))
     out_tab = pd.DataFrame(data=out_tab, columns=out_names)
-            # for each cluster, we find the most common features
-            # and the claims frequency per cluster
+    # for each cluster, we find the most common features
+    # and the claims frequency per cluster
             
     for k in range(0, clus):
         idx = (X_clus == k)
@@ -601,7 +585,9 @@ plt.title('Cross entropy')
 plt.plot(epoch, ce_kmeans, 'b.-')
 
 
-#%% Cross entropy of the KMeans in function of the number of clusters
+######################################################################
+# Plot cross-entropy of the K-means in function of the number of clusters
+######################################################################
 
 import random
 random.seed(2023)
@@ -615,18 +601,14 @@ batchsize = 1000
 epoch = 300 
 clus = 10
 original_dim = 113
-#intermediate_dim = 20  # loss = 36 avec 30 inter_dim
-#latent_dim = 10
-#(40, 0.001, 5, 1000, 10, e)
 
 # encoder model
 inputs = keras.Input(shape=(original_dim,))
-m = layers.Dense(intermediate_dim, activation="relu")(inputs)
-#m = layers.Dense(64, activation = "sigmoid")(m)
-n = layers.Dense(20, activation="relu")(m)
-h = layers.Dense(15, activation="relu")(n)
-z_mean = layers.Dense(latent_dim)(h)
-z_log_var = layers.Dense(latent_dim)(h)
+d1_encoder = layers.Dense(intermediate_dim, activation="relu")(inputs)
+d2_encoder = layers.Dense(20, activation="relu")(d1_encoder)
+d3_encoder = layers.Dense(15, activation="relu")(d2_encoder)
+z_mean = layers.Dense(latent_dim)(d3_encoder)
+z_log_var = layers.Dense(latent_dim)(d3_encoder)
 encoder = keras.Model(inputs, [z_mean, z_log_var], name="encoder")
 
 
@@ -637,13 +619,11 @@ class Sampler(layers.Layer):
         epsilon = tf.random.normal(shape=(batch_size, z_size))
         return z_mean + tf.exp(0.5 * z_log_var) * epsilon
 
-
+#decoder model
 latent_inputs = keras.Input(shape=(latent_dim,), name="z_sampling")
-x = layers.Dense(15, activation="relu")(latent_inputs)
-#x = layers.Dense(20, activation="relu")(x)
-x = layers.Dense(intermediate_dim, activation="relu")(x)
-#x = layers.Dense(64, activation = "sigmoid")(x)
-outputs = layers.Dense(original_dim, activation="sigmoid")(x)
+d1_decoder = layers.Dense(15, activation="relu")(latent_inputs)
+d2_decoder = layers.Dense(intermediate_dim, activation="relu")(d1_decoder)
+outputs = layers.Dense(original_dim, activation="sigmoid")(d2_decoder)
 decoder = keras.Model(latent_inputs, outputs, name="decoder")
         
         
@@ -691,7 +671,6 @@ class VAE(keras.Model):
         
 vae = VAE(encoder, decoder)
 opt = keras.optimizers.RMSprop(learning_rate=lr)
-        #opt = "rmsprop"
 vae.compile(optimizer=opt, metrics=[keras.metrics.BinaryCrossentropy()])
 history = vae.fit(X_train, epochs=epoch, batch_size = batchsize, verbose = 1)
 
@@ -705,7 +684,6 @@ decoded = vae.decoder.predict(z)
 bce = tf.keras.losses.BinaryCrossentropy(
     from_logits=False, reduction=tf.keras.losses.Reduction.SUM_OVER_BATCH_SIZE)
 loss = bce(X_test, decoded)
-#print("Binary Cross-Entropy Loss (TensorFlow):", loss.numpy())
         
 train_encoded = vae.encoder.predict(X_train)
 z_train = Sampler(name="z")(train_encoded[0], train_encoded[1])
@@ -739,13 +717,10 @@ for clus in range (1, 15):
                          'FlightDistanceCat', 'DepartDelayCat', 'ArrivalDelayCat', 'satisfaction']
     out_tab = np.zeros(shape=(clus, len(out_names)))
     out_tab = pd.DataFrame(data=out_tab, columns=out_names)
-            # for each cluster, we find the most common features
-            # and the claims frequency per cluster
-            
-    
+
+    # for each cluster, we find the most common features
     for k in range(0, clus):
         idx = (X_clus == k)
-        #freq = sum(data['NumberClaims'][idx])/sum(data['Duration'][idx])
         SA = Counter(y_test['satisfaction'][idx])[1] / \
             y_test['satisfaction'][idx].shape[0]
         G = Counter(data_test['Gender'][idx]).most_common(1)
@@ -779,7 +754,6 @@ for clus in range (1, 15):
     yobs = y_test
     logloss = log_loss(yobs, ypred)
     print(logloss)
-    
     ce2.append([int(clus), logloss]) 
 
 ce2= np.array(ce2).reshape(-1,2) 
