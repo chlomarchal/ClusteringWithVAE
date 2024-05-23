@@ -1,10 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Fri Mar  1 21:48:22 2024
-
-@author: chloe
-"""
-
 import numpy as np # linear algebra
 import pandas as pd # data processing, CSV file I/O (e.g. pd.read_csv)
 import matplotlib.pyplot as plt
@@ -12,19 +5,25 @@ import seaborn as sns
 from scipy.stats import chi2_contingency
 import scipy.stats as stats 
 
+#############################################
+# CHANGE PATH !!!!
+#############################################
 
-sns.set_style('darkgrid')
+path = 'C:/Users/chloe/OneDrive/Documents/DATS2M_1/MEMOIRE/Code/code officiel/data'
 
-#import the two dataset
-data = pd.read_csv("C:/Users/chloe/OneDrive/Documents/DATS2M_1/MEMOIRE/Code/code officiel/data/train.csv", sep=',')
-data2 = pd.read_csv("C:/Users/chloe/OneDrive/Documents/DATS2M_1/MEMOIRE/Code/code officiel/data/test.csv", sep=',')
+#############################################
+# Importing datasets and data preprocessing
+#############################################
+
+data = pd.read_csv(path + "/train.csv", sep=',')
+data2 = pd.read_csv(path + "/test.csv", sep=',')
 
 #concatenate the two datasets
 df = pd.concat([data, data2])
 
 #drop the unnecessary columns
 df.drop(['Unnamed: 0','id'],axis=1,inplace=True)
-#%%
+
 df.isnull().sum() #missing values
 
 #fill in missing values with median value
@@ -45,15 +44,20 @@ for col in ['Gender', 'Customer Type', 'Type of Travel', 'Class', 'Inflight wifi
 
 data = df
 
-#descriptive statistics
-desc = data.describe()
+desc = data.describe() #descriptive statistics
 
-#%% correlation matrix
+#############################################
+# Correlation matrix of continuous variables
+#############################################
 
+sns.set_style('darkgrid')
 plt.figure(figsize=(14,5))
 sns.heatmap(data.corr(),annot=True,cmap='viridis',annot_kws={"size":15})
 
-#%%
+#############################################
+# Data transformation : delays
+#############################################
+
 #transform satisfaction to category
 data['satisfaction'] = data['satisfaction'].astype("category")
 
@@ -72,8 +76,9 @@ data = data.assign(ArrivalDelayCat=tmp)
 #drop the unnecessary variables
 data = data.drop(['Departure Delay in Minutes','Arrival Delay in Minutes'], axis=1)
 
-
-#%% Barplots in function of satisfaction part 1
+#############################################
+# Barplots in function of satisfaction part 1
+#############################################
 
 num_sub_plot=len(data.columns)
 fig,ax=plt.subplots(4,3,figsize=(18,24))
@@ -91,7 +96,9 @@ sns.countplot(data=data,x=col[9],hue='satisfaction',ax=ax[3,0], palette=['#2DA3C
 sns.countplot(data=data,x=col[10],hue='satisfaction',ax=ax[3,1], palette=['#2DA3CD',"#F8C302"])
 sns.countplot(data=data,x=col[11],hue='satisfaction',ax=ax[3,2], palette=['#2DA3CD',"#F8C302"])
 
-#%% Barplots in function of satisfaction part 2
+#############################################
+# Barplots in function of satisfaction part 2
+#############################################
 
 num_sub_plot=len(data.columns)
 fig,ax=plt.subplots(4,3,figsize=(18,24))
@@ -109,7 +116,9 @@ sns.countplot(data=data,x=col[22],hue='satisfaction',ax=ax[3,0], palette=['#2DA3
 sns.countplot(data=data,x=col[20],ax=ax[3,1], palette=['#2DA3CD',"#F8C302"])
 ax[3,2].set_axis_off()
 
-#%% Barplots part 1
+#############################################
+# Barplots part 1
+#############################################
 
 num_sub_plot=len(data.columns)
 fig,ax=plt.subplots(4,3,figsize=(18,24))
@@ -127,7 +136,9 @@ sns.countplot(data=data,x=col[9],ax=ax[3,0], color= '#2DA3CD')
 sns.countplot(data=data,x=col[10],ax=ax[3,1], color= '#2DA3CD')
 sns.countplot(data=data,x=col[11],ax=ax[3,2], color= '#2DA3CD')
 
-#%% Barplots part 2
+#############################################
+# Barplots part 2
+#############################################
 
 num_sub_plot=len(data.columns)
 fig,ax=plt.subplots(4,3,figsize=(18,24))
@@ -145,7 +156,11 @@ sns.countplot(data=data,x=col[22],ax=ax[3,0], color= '#2DA3CD')
 sns.countplot(data=data,x=col[20],ax=ax[3,1], color= '#2DA3CD')
 ax[3,2].set_axis_off()
 
-#%% Create categories for Age and Flight distance
+#############################################
+# Data transformation : flight distance, age
+#############################################
+
+# Create categories for Age and Flight distance
 labels = ["7 - 18", "19 - 30", "31 - 40", "41 - 50", "51 - 64", "65-85"]
 tmp = pd.cut(data['Age'], [7, 19, 31, 41, 51, 65, 85], right=False, labels=labels)
 data = data.assign(AgeCat=tmp)
@@ -157,8 +172,11 @@ data = data.assign(FlightDistanceCat=tmp)
 #drop unnecessary variables
 data = data.drop(['Age', 'Flight Distance'], axis=1)
 
-#%% Cramer's V matrix ()
+
+##########################################################################################
+# Cramer's V matrix ()
 #code inspired from : https://www.kaggle.com/code/chrisbss1/cramer-s-v-correlation-matrix
+##########################################################################################
 
 #function for computing the cramer's V
 def cramers_V(var1,var2) :
@@ -188,7 +206,6 @@ mask[np.triu_indices_from(mask)] = True
 plt.figure(figsize=(14, 10))
 with sns.axes_style("white"):
   ax = sns.heatmap(df, mask=mask, vmax=1, square=True, cmap='viridis',annot_kws={"size":10}, annot = True)
-
 plt.show()
 
 data_bis = np.array(data_bis)
