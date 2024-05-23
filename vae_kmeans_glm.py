@@ -1,12 +1,5 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Sun Apr  7 18:43:55 2024
-
-@author: chloe
-"""
 from tensorflow import keras
 from tensorflow.keras import layers
-# Import numpy & matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -17,12 +10,20 @@ from sklearn.cluster import KMeans
 from collections import Counter
 from sklearn.manifold import TSNE
 from sklearn.metrics import log_loss
-from sklearn.model_selection import KFold
 import statsmodels.api as sm
 
+#############################################
+# CHANGE PATH !!!!
+#############################################
 
-data = pd.read_csv("C:/Users/chloe/OneDrive/Documents/DATS2M_1/MEMOIRE/Code/code officiel/data/train.csv", sep=',')
-data2 = pd.read_csv("C:/Users/chloe/OneDrive/Documents/DATS2M_1/MEMOIRE/Code/code officiel/data/test.csv", sep=',')
+path = 'C:/Users/chloe/OneDrive/Documents/DATS2M_1/MEMOIRE/Code/code officiel/data'
+
+#############################################
+# Importing datasets and data preprocessing
+#############################################
+
+data = pd.read_csv(path + "/train.csv", sep=',')
+data2 = pd.read_csv(path + "/test.csv", sep=',')
 data = pd.concat([data, data2])
 data['Arrival Delay in Minutes'].fillna(value=data['Arrival Delay in Minutes'].median(axis=0),inplace=True)
 data = data.drop(columns = ['Unnamed: 0', 'id']) 
@@ -73,9 +74,9 @@ X_train = np.asarray(X_train, dtype='float')
 X_test = np.asarray(X_test, dtype='float')
 
 
-
-
-#%% Final results of the GLM
+#################################################
+# VAE + GLM with optimal set of hyperparameters
+#################################################
 
 import random
 random.seed(2023)
@@ -91,14 +92,12 @@ epoch = 40
 original_dim = 113
                 
 # encoder model
-# encoder model
 inputs = keras.Input(shape=(original_dim,))
-m = layers.Dense(intermediate_dim, activation="relu")(inputs)
-#m = layers.Dense(64, activation = "sigmoid")(m)
-n = layers.Dense(20, activation="relu")(m)
-h = layers.Dense(15, activation="relu")(n)
-z_mean = layers.Dense(latent_dim)(h)
-z_log_var = layers.Dense(latent_dim)(h)
+d1_encoder = layers.Dense(intermediate_dim, activation="relu")(inputs)
+d2_encoder = layers.Dense(20, activation="relu")(d1_encoder)
+d3_encoder = layers.Dense(15, activation="relu")(d2_encoder)
+z_mean = layers.Dense(latent_dim)(d3_encoder)
+z_log_var = layers.Dense(latent_dim)(d3_encoder)
 encoder = keras.Model(inputs, [z_mean, z_log_var], name="encoder")
 
 
@@ -110,12 +109,11 @@ class Sampler(layers.Layer):
         return z_mean + tf.exp(0.5 * z_log_var) * epsilon
 
 
+#decoder model
 latent_inputs = keras.Input(shape=(latent_dim,), name="z_sampling")
-x = layers.Dense(15, activation="relu")(latent_inputs)
-#x = layers.Dense(20, activation="relu")(x)
-x = layers.Dense(intermediate_dim, activation="relu")(x)
-#x = layers.Dense(64, activation = "sigmoid")(x)
-outputs = layers.Dense(original_dim, activation="sigmoid")(x)
+d1_decoder = layers.Dense(15, activation="relu")(latent_inputs)
+d2_decoder = layers.Dense(intermediate_dim, activation="relu")(d1_decoder)
+outputs = layers.Dense(original_dim, activation="sigmoid")(d2_decoder)
 decoder = keras.Model(latent_inputs, outputs, name="decoder")
         
         
@@ -164,7 +162,6 @@ class VAE(keras.Model):
         
 vae = VAE(encoder, decoder)
 opt = keras.optimizers.RMSprop(learning_rate=lr)
-        #opt = "rmsprop"
 vae.compile(optimizer=opt, metrics=[keras.metrics.BinaryCrossentropy()])
 history = vae.fit(X_train, epochs=epoch, batch_size = batchsize, verbose = 1)
 
@@ -178,7 +175,6 @@ decoded = vae.decoder.predict(z)
 bce = tf.keras.losses.BinaryCrossentropy(
             from_logits=False, reduction=tf.keras.losses.Reduction.SUM_OVER_BATCH_SIZE)
 loss = bce(X_test, decoded)
-#print("Binary Cross-Entropy Loss (TensorFlow):", loss.numpy())
         
 encoder.summary()
 decoder.summary()
@@ -191,7 +187,6 @@ test_encoded = vae.encoder.predict(X_test)
 z_test = Sampler(name="z")(test_encoded[0], test_encoded[1])
 test_compressed = z_test._numpy()
 
-
 glm_binom = sm.GLM(y_train, train_compressed, family = sm.families.Binomial())
 res = glm_binom.fit()
 ypred = res.predict(test_compressed)
@@ -199,14 +194,9 @@ logloss = log_loss(y_test, ypred)
 print(logloss)
 print(res.summary())
 
-train = pd.DataFrame(train_compressed)
-
-train_df_compressed = pd.DataFrame(train_compressed, columns=['X1','X2','X3','X4','X5','X6','X7','X8','X9','X10','X11','X12','X13','X14','X15'])
-plt.figure(figsize=(14,5))
-sns.heatmap(train_df_compressed.corr(),annot=True,cmap='viridis',annot_kws={"size":12})
-
-
-#%% Final results of the Kmeans
+####################################################
+# VAE + K-means with optimal set of hyperparameters
+####################################################
 
 import random
 random.seed(2023)
@@ -223,12 +213,11 @@ original_dim = 113
 
 # encoder model
 inputs = keras.Input(shape=(original_dim,))
-m = layers.Dense(intermediate_dim, activation="relu")(inputs)
-#m = layers.Dense(64, activation = "sigmoid")(m)
-n = layers.Dense(20, activation="relu")(m)
-h = layers.Dense(15, activation="relu")(n)
-z_mean = layers.Dense(latent_dim)(h)
-z_log_var = layers.Dense(latent_dim)(h)
+d1_encoder = layers.Dense(intermediate_dim, activation="relu")(inputs)
+d2_encoder = layers.Dense(20, activation="relu")(d1_encoder)
+d3_encoder = layers.Dense(15, activation="relu")(d2_encoder)
+z_mean = layers.Dense(latent_dim)(d3_encoder)
+z_log_var = layers.Dense(latent_dim)(d3_encoder)
 encoder = keras.Model(inputs, [z_mean, z_log_var], name="encoder")
 
 
@@ -240,14 +229,13 @@ class Sampler(layers.Layer):
         return z_mean + tf.exp(0.5 * z_log_var) * epsilon
 
 
+#decoder model
 latent_inputs = keras.Input(shape=(latent_dim,), name="z_sampling")
-x = layers.Dense(15, activation="relu")(latent_inputs)
-#x = layers.Dense(20, activation="relu")(x)
-x = layers.Dense(intermediate_dim, activation="relu")(x)
-#x = layers.Dense(64, activation = "sigmoid")(x)
-outputs = layers.Dense(original_dim, activation="sigmoid")(x)
+d1_decoder = layers.Dense(15, activation="relu")(latent_inputs)
+d2_decoder = layers.Dense(intermediate_dim, activation="relu")(d1_decoder)
+outputs = layers.Dense(original_dim, activation="sigmoid")(d2_decoder)
 decoder = keras.Model(latent_inputs, outputs, name="decoder")
-        
+       
         
 class VAE(keras.Model):
     def __init__(self, encoder, decoder, **kwargs):
@@ -292,7 +280,6 @@ class VAE(keras.Model):
         
 vae = VAE(encoder, decoder)
 opt = keras.optimizers.RMSprop(learning_rate=lr)
-        #opt = "rmsprop"
 vae.compile(optimizer=opt, metrics=[keras.metrics.BinaryCrossentropy()])
 history = vae.fit(X_train, epochs=epoch, batch_size = batchsize, verbose = 1)
 
@@ -306,7 +293,6 @@ decoded = vae.decoder.predict(z)
 bce = tf.keras.losses.BinaryCrossentropy(
     from_logits=False, reduction=tf.keras.losses.Reduction.SUM_OVER_BATCH_SIZE)
 loss = bce(X_test, decoded)
-#print("Binary Cross-Entropy Loss (TensorFlow):", loss.numpy())
         
 train_encoded = vae.encoder.predict(X_train)
 z_train = Sampler(name="z")(train_encoded[0], train_encoded[1])
@@ -341,13 +327,10 @@ out_names = ['Gender', 'Customer Type', 'Type of Travel', 'Class',
                      'FlightDistanceCat', 'DepartDelayCat', 'ArrivalDelayCat', 'satisfaction']
 out_tab = np.zeros(shape=(clus, len(out_names)))
 out_tab = pd.DataFrame(data=out_tab, columns=out_names)
-# for each cluster, we find the most common features
-# and the claims frequency per cluster
-        
 
+# for each cluster, we find the most common features        
 for k in range(0, clus):
     idx = (X_clus == k)
-    #freq = sum(data['NumberClaims'][idx])/sum(data['Duration'][idx])
     SA = Counter(y_test['satisfaction'][idx])[1] / \
         y_test['satisfaction'][idx].shape[0]
     G = Counter(data_test['Gender'][idx]).most_common(1)
@@ -388,7 +371,9 @@ print(logloss)
 #mean values
 out_tab.mean(axis = 0)
 
-#%% TSNE plots 
+#################################################
+# t-SNE plot (2D)
+#################################################
 
 X_one_hot_C = np.asarray(X_one_hot_Complete, dtype = "float")
 
@@ -417,39 +402,15 @@ fg = sns.scatterplot(data=df_tsne, x='TSNE1', y='TSNE2',hue='cluster', palette='
 fg.legend(bbox_to_anchor= (1.2,1))
 plt.show()
 
-#%%
-
-#tsne_full3 = TSNE(n_components = 3, verbose = 1, random_state = 2023, perplexity=100, n_iter = 500).fit_transform(X_compressed)
-#df_tsne3 = pd.DataFrame(tsne_full3, columns=['TSNE1', 'TSNE2', 'TSNE3'])
-#df_tsne3.insert(3,'satisfaction',y)
-#df_tsne3.insert(4, 'cluster', Xclus)
-
-#%%
-
-# Import libraries
-#from mpl_toolkits import mplot3d
-#import numpy as np
-#import matplotlib.pyplot as plt
-
-
-# Creating figure
-#fig = plt.figure(figsize = (10, 7))
-#ax = plt.axes(projection ="3d")
-
-# Creating plot
-#ax.scatter3D(df_tsne3.iloc[:,0], df_tsne3.iloc[:,1],df_tsne3.iloc[:,2], c = df_tsne3.iloc[:,4])
-
-# show plot
-#plt.show()
-
-
-#%% GLM with dummyfied dataset
+#################################################
+# GLM with dummyfied dataset
+#################################################
 
 X_train_glm = pd.get_dummies(data_train, drop_first=True)
 X_test_glm = pd.get_dummies(data_test, drop_first=True)
 #X_one_hot  = pd.get_dummies(X,drop_first=False)
 
-# Remove category xx_1 of variables where xx_0 is close to 0
+# Remove category xxxxx_1 of variables where xxxxx_0 is close to 0
 X_dropped = X_train_glm.drop(['Inflight entertainment_1', 'On-board service_1', 
                               'Gate location_1', 'Inflight wifi service_1',
                                   'Checkin service_1', 'Inflight service_1', 
@@ -469,5 +430,3 @@ X_test_dropped = sm.add_constant(X_test_dropped)
 ypred = res.predict(X_test_dropped)
 logloss = log_loss(y_test, ypred)
 print(logloss)
-
-
