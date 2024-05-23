@@ -1,4 +1,4 @@
-Clustering with Variational Autoencoders :
+# Clustering with Variational Autoencoders :
 
 This code is a support for a Master Thesis. 
 
