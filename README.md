@@ -7,3 +7,6 @@ Additionally, we try to generate some synthetic data and again perform clusterin
 
 Here is a short explanation of the files : 
 - 
+
+
+Clustering with Variational Autoencoders 
