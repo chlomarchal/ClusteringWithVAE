@@ -1,10 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Wed Nov 15 10:58:43 2023
-
-@author: chloe
-"""
-
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -13,8 +6,19 @@ from sklearn.cluster import KMeans
 from collections     import Counter
 from sklearn.metrics import log_loss
 
-data = pd.read_csv("C:/Users/chloe/OneDrive/Documents/DATS2M_1/MEMOIRE/Code/code officiel/data/train.csv", sep=',')
-data2 = pd.read_csv("C:/Users/chloe/OneDrive/Documents/DATS2M_1/MEMOIRE/Code/code officiel/data/test.csv", sep=',')
+
+#############################################
+# CHANGE PATH !!!!
+#############################################
+
+path = 'C:/Users/chloe/OneDrive/Documents/DATS2M_1/MEMOIRE/Code/code officiel/data'
+
+#############################################
+# Importing datasets and data preprocessing
+#############################################
+
+data = pd.read_csv(path + "/train.csv", sep=',')
+data2 = pd.read_csv(path + "/test.csv", sep=',')
 data = pd.concat([data, data2])
 data['Arrival Delay in Minutes'].fillna(value=data['Arrival Delay in Minutes'].median(axis=0),inplace=True)
 data = data.drop(columns = ['Unnamed: 0', 'id']) 
@@ -51,7 +55,10 @@ Y        =  data[['satisfaction']]
 X        =  data.drop(['Age','Flight Distance','Departure Delay in Minutes',
                        'Arrival Delay in Minutes', 'satisfaction'],axis=1)
 
-#%%
+#############################################
+# BURT encoding
+#############################################
+
 D  =  pd.get_dummies(X,drop_first=False)
 l  =  X.shape[1]  
 B  =  np.dot(np.asarray(D,dtype=int).T , np.asarray(D,dtype=int))   # Burt matrix or D.T @ D
@@ -74,7 +81,9 @@ X_test = X.iloc[test_indices, :]
 y_train = Y.iloc[train_indices, :]
 y_test = Y.iloc[test_indices, :]
 
-#%% Function to compute the clusters and logloss in function of the number of clusters clus
+#################################################
+# Function for clustering with clus as parameter
+#################################################
 
 def burt(clus) : 
     km = KMeans(init="random",
@@ -133,7 +142,10 @@ def burt(clus) :
     logloss = log_loss(y_test, ypred)
     return(logloss, out_tab)
 
-#%% Plot crossentropy for clusters from 1 to 14
+
+#############################################
+# Plot crossentropy for clusters from 1 to 14
+#############################################
 
 clus = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14] 
 ce_kmeans = []
@@ -150,7 +162,9 @@ plt.plot(clus, ce_vae_kmeans, '.-', label = "K-means compressed with VAE")
 plt.legend()
 plt.show()
 
-#%% Results for 10 clusters
+#############################################
+# Results for 10 clusters
+#############################################
 
 res = burt(10)
 logloss = res[0]
