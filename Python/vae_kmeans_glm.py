@@ -194,6 +194,10 @@ logloss = log_loss(y_test, ypred)
 print(logloss)
 print(res.summary())
 
+train_df_compressed = pd.DataFrame(train_compressed, columns=['X1','X2','X3','X4','X5','X6','X7','X8','X9','X10','X11','X12','X13','X14','X15'])
+plt.figure(figsize=(14,5))
+sns.heatmap(train_df_compressed.corr(),annot=True,cmap='viridis',annot_kws={"size":12})
+
 ####################################################
 # VAE + K-means with optimal set of hyperparameters
 ####################################################
@@ -304,7 +308,7 @@ test_compressed = z_test._numpy()
 
 train_df_compressed = pd.DataFrame(train_compressed, columns=['X1','X2','X3','X4','X5'])
 plt.figure(figsize=(14,5))
-sns.heatmap(train_df_compressed.corr(),annot=True,cmap='viridis',annot_kws={"size":15})
+sns.heatmap(train_df_compressed.corr(),annot=True,cmap='viridis',annot_kws={"size":12})
 
 clus = 10
 
